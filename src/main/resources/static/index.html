@@ -1,0 +1,1500 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>24点游戏</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a1a3e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="24点游戏">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background: linear-gradient(135deg, #0c0c1d 0%, #1a1a3e 50%, #0c0c1d 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #e0e0e0;
+            overflow-x: hidden;
+        }
+
+        .particles {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 0;
+        }
+        .particle {
+            position: absolute; width: 2px; height: 2px;
+            background: rgba(255, 215, 0, 0.3); border-radius: 50%;
+            animation: float linear infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 1; } 90% { opacity: 1; }
+            100% { transform: translateY(-10vh) rotate(720deg); opacity: 0; }
+        }
+
+        .game-container {
+            position: relative; z-index: 1; width: 480px; max-width: 95vw;
+            background: rgba(20, 20, 50, 0.85); border-radius: 20px; padding: 30px;
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.1), 0 0 80px rgba(100, 100, 255, 0.05);
+            border: 1px solid rgba(255, 215, 0, 0.15); backdrop-filter: blur(10px);
+        }
+
+        .game-title {
+            text-align: center; font-size: 36px; font-weight: 700; margin-bottom: 8px;
+            background: linear-gradient(135deg, #ffd700, #ff8c00, #ffd700);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            background-clip: text; letter-spacing: 4px;
+        }
+        .game-subtitle {
+            text-align: center; font-size: 13px; color: rgba(255, 215, 0, 0.5);
+            margin-bottom: 20px; letter-spacing: 2px;
+        }
+
+        /* 关卡信息栏 */
+        .level-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 12px; padding: 10px 16px;
+            background: rgba(255, 215, 0, 0.08); border-radius: 12px;
+            border: 1px solid rgba(255, 215, 0, 0.15);
+        }
+        .level-name {
+            font-size: 16px; font-weight: 700; color: #ffd700; letter-spacing: 1px;
+        }
+        .level-progress {
+            display: flex; gap: 6px; align-items: center;
+        }
+        .level-dot {
+            width: 12px; height: 12px; border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15); border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s;
+        }
+        .level-dot.completed {
+            background: #64ff96; border-color: #64ff96;
+            box-shadow: 0 0 8px rgba(100, 255, 150, 0.4);
+        }
+        .level-dot.current {
+            background: #ffd700; border-color: #ffd700;
+            box-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+            animation: dotPulse 1s ease infinite alternate;
+        }
+        .level-dot.locked {
+            background: rgba(255, 255, 255, 0.05); border-color: rgba(255, 255, 255, 0.1);
+        }
+        @keyframes dotPulse {
+            from { box-shadow: 0 0 4px rgba(255, 215, 0, 0.3); }
+            to { box-shadow: 0 0 12px rgba(255, 215, 0, 0.6); }
+        }
+
+        /* 倒计时条 */
+        .countdown-bar {
+            margin-bottom: 16px; position: relative;
+        }
+        .countdown-track {
+            width: 100%; height: 8px; background: rgba(255, 255, 255, 0.08);
+            border-radius: 4px; overflow: hidden;
+        }
+        .countdown-fill {
+            height: 100%; border-radius: 4px; transition: width 0.3s linear;
+            background: linear-gradient(90deg, #ffd700, #ff8c00);
+        }
+        .countdown-fill.danger {
+            background: linear-gradient(90deg, #ff4444, #ff8c00);
+        }
+        .countdown-text {
+            position: absolute; top: -22px; right: 0;
+            font-size: 18px; font-weight: 700; color: #ffd700;
+            font-variant-numeric: tabular-nums;
+        }
+        .countdown-text.danger { color: #ff4444; }
+
+        /* 统计栏 */
+        .stats-bar {
+            display: flex; justify-content: space-between; margin-bottom: 20px;
+            padding: 12px 16px; background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .stat-item { text-align: center; }
+        .stat-label {
+            font-size: 11px; color: rgba(255, 255, 255, 0.4);
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        .stat-value {
+            font-size: 22px; font-weight: 700; color: #ffd700; margin-top: 2px;
+        }
+
+        /* 卡牌区域 */
+        .cards-area {
+            display: flex; justify-content: center; gap: 14px; margin-bottom: 24px;
+        }
+        .card {
+            width: 90px; height: 126px;
+            background: linear-gradient(145deg, #1e1e4a, #2a2a5e);
+            border-radius: 12px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid rgba(255, 215, 0, 0.2);
+            position: relative; overflow: hidden; user-select: none;
+        }
+        .card::before {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.1) 0%, transparent 60%);
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-6px) scale(1.05);
+            border-color: rgba(255, 215, 0, 0.5);
+            box-shadow: 0 8px 25px rgba(255, 215, 0, 0.15);
+        }
+        .card:hover::before { opacity: 1; }
+        .card:active { transform: translateY(-2px) scale(1.02); }
+        .card.selected {
+            border-color: #ffd700; box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
+            transform: translateY(-8px) scale(1.08);
+        }
+        .card-number { font-size: 36px; font-weight: 700; color: #ffd700; line-height: 1; }
+        .card-suit { font-size: 20px; margin-top: 4px; }
+        .card-suit.red { color: #ff4444; }
+        .card-suit.black { color: #cccccc; }
+
+        /* 表达式输入区 */
+        .expression-area { margin-bottom: 20px; }
+        .expression-display {
+            width: 100%; padding: 14px 18px; font-size: 22px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            background: rgba(0, 0, 0, 0.4); border: 2px solid rgba(255, 215, 0, 0.2);
+            border-radius: 12px; color: #ffd700; text-align: center;
+            letter-spacing: 2px; min-height: 56px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .expression-display.empty { color: rgba(255, 215, 0, 0.25); }
+
+        /* 操作按钮区 */
+        .operators-area {
+            display: flex; justify-content: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap;
+        }
+        .op-btn {
+            width: 52px; height: 44px; border: 1px solid rgba(255, 215, 0, 0.25);
+            background: rgba(255, 215, 0, 0.08); color: #ffd700;
+            font-size: 20px; font-weight: 600; border-radius: 10px;
+            cursor: pointer; transition: all 0.2s; font-family: 'Consolas', monospace;
+        }
+        .op-btn:hover { background: rgba(255, 215, 0, 0.2); border-color: rgba(255, 215, 0, 0.5); transform: scale(1.05); }
+        .op-btn:active { transform: scale(0.95); }
+
+        /* 功能按钮区 */
+        .action-area {
+            display: flex; justify-content: center; gap: 10px; margin-bottom: 16px;
+        }
+        .action-btn {
+            flex: 1; padding: 12px 0; border: none; border-radius: 10px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s; letter-spacing: 1px;
+        }
+        .btn-submit { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #1a1a3e; }
+        .btn-submit:hover { box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3); transform: translateY(-2px); }
+        .btn-hint { background: rgba(100, 200, 255, 0.15); color: #64c8ff; border: 1px solid rgba(100, 200, 255, 0.3); }
+        .btn-hint:hover { background: rgba(100, 200, 255, 0.25); transform: translateY(-2px); }
+        .btn-new { background: rgba(100, 255, 150, 0.15); color: #64ff96; border: 1px solid rgba(100, 255, 150, 0.3); }
+        .btn-new:hover { background: rgba(100, 255, 150, 0.25); transform: translateY(-2px); }
+        .btn-clear { background: rgba(255, 100, 100, 0.15); color: #ff6464; border: 1px solid rgba(255, 100, 100, 0.3); }
+        .btn-clear:hover { background: rgba(255, 100, 100, 0.25); transform: translateY(-2px); }
+        .btn-extreme {
+            background: linear-gradient(135deg, #ff4444, #ff00ff); color: #fff;
+            border: none; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .btn-extreme:hover { box-shadow: 0 4px 15px rgba(255, 0, 255, 0.3); transform: translateY(-2px); }
+        .btn-extreme:disabled {
+            background: rgba(255, 255, 255, 0.08); color: rgba(255,255,255,0.3);
+            text-shadow: none; cursor: not-allowed; transform: none; box-shadow: none;
+        }
+        .btn-rank {
+            background: linear-gradient(135deg, #644dff, #c44dff); color: #fff;
+            border: none; text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .btn-rank:hover { box-shadow: 0 4px 15px rgba(100,77,255,0.3); transform: translateY(-2px); }
+
+        /* 消息提示 */
+        .message-area { min-height: 48px; display: flex; align-items: center; justify-content: center; }
+        .message {
+            padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 500;
+            text-align: center; animation: fadeIn 0.3s ease; width: 100%;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .message.success { background: rgba(100, 255, 150, 0.15); color: #64ff96; border: 1px solid rgba(100, 255, 150, 0.3); }
+        .message.error { background: rgba(255, 100, 100, 0.15); color: #ff6464; border: 1px solid rgba(255, 100, 100, 0.3); }
+        .message.info { background: rgba(100, 200, 255, 0.15); color: #64c8ff; border: 1px solid rgba(100, 200, 255, 0.3); }
+        .message.hint { background: rgba(255, 215, 0, 0.1); color: #ffd700; border: 1px solid rgba(255, 215, 0, 0.25); font-family: 'Consolas', monospace; font-size: 16px; letter-spacing: 1px; }
+
+        /* 卡牌动画 */
+        @keyframes cardFlip { 0% { transform: rotateY(0deg); } 50% { transform: rotateY(90deg); } 100% { transform: rotateY(0deg); } }
+        .card.flipping { animation: cardFlip 0.5s ease; }
+        @keyframes celebrate { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+        .card.celebrate { animation: celebrate 0.4s ease; border-color: #64ff96; box-shadow: 0 0 25px rgba(100, 255, 150, 0.4); }
+
+        /* 游戏结束遮罩 */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8); z-index: 100;
+            display: flex; justify-content: center; align-items: center;
+            animation: fadeIn 0.3s ease;
+        }
+        .overlay-content {
+            background: rgba(20, 20, 50, 0.95); border-radius: 20px; padding: 40px;
+            text-align: center; max-width: 400px; width: 90vw;
+            border: 1px solid rgba(255, 215, 0, 0.2);
+            box-shadow: 0 0 60px rgba(255, 215, 0, 0.1);
+        }
+        .overlay-title {
+            font-size: 28px; font-weight: 700; margin-bottom: 16px;
+            background: linear-gradient(135deg, #ffd700, #ff8c00);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .overlay-text { font-size: 16px; color: #e0e0e0; margin-bottom: 8px; }
+        .overlay-highlight { font-size: 36px; font-weight: 700; color: #ffd700; margin: 12px 0; }
+        .overlay-best { font-size: 14px; color: rgba(255, 215, 0, 0.6); margin-bottom: 20px; }
+        .overlay-btn {
+            padding: 12px 32px; border: none; border-radius: 10px; font-size: 16px;
+            font-weight: 600; cursor: pointer; transition: all 0.2s; margin: 6px;
+        }
+        .overlay-btn-primary { background: linear-gradient(135deg, #ffd700, #ff8c00); color: #1a1a3e; }
+        .overlay-btn-primary:hover { box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3); transform: translateY(-2px); }
+        .overlay-btn-secondary { background: rgba(255, 255, 255, 0.1); color: #e0e0e0; border: 1px solid rgba(255,255,255,0.2); }
+        .overlay-btn-secondary:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+
+        /* 极限模式特殊样式 */
+        .extreme-mode .game-title {
+            background: linear-gradient(135deg, #ff4444, #ff00ff, #ff4444);
+            -webkit-background-clip: text; background-clip: text;
+        }
+        .extreme-mode .countdown-fill {
+            background: linear-gradient(90deg, #ff00ff, #ff4444);
+        }
+
+        /* 响应式 */
+        @media (max-width: 500px) {
+            .game-container { padding: 20px; }
+            .card { width: 72px; height: 100px; }
+            .card-number { font-size: 28px; }
+            .game-title { font-size: 28px; }
+        }
+
+        /* 模式选择 */
+        .mode-select {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #0c0c1d 0%, #1a1a3e 50%, #0c0c1d 100%);
+            z-index: 300; display: flex; justify-content: center; align-items: flex-start;
+            padding: 20px 0; overflow-y: auto;
+        }
+        .mode-box {
+            text-align: center; max-width: 400px; width: 90vw;
+            margin: auto 0; padding: 20px 0;
+        }
+        .mode-title {
+            font-size: 48px; font-weight: 900; margin-bottom: 8px;
+            background: linear-gradient(135deg, #ffd700, #ff8c00, #ffd700);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            letter-spacing: 6px;
+        }
+        .mode-subtitle { font-size: 14px; color: rgba(255,215,0,0.4); margin-bottom: 40px; letter-spacing: 3px; }
+        .mode-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .mode-btn {
+            width: 160px; padding: 20px 16px; border-radius: 16px; cursor: pointer;
+            transition: all 0.3s; text-align: center; border: 2px solid;
+        }
+        .mode-btn:hover { transform: translateY(-4px); }
+        .mode-btn:active { transform: translateY(-1px); }
+        .mode-btn-pro {
+            background: linear-gradient(145deg, rgba(255,215,0,0.15), rgba(255,140,0,0.1));
+            border-color: rgba(255,215,0,0.4);
+        }
+        .mode-btn-pro:hover { box-shadow: 0 8px 30px rgba(255,215,0,0.2); border-color: rgba(255,215,0,0.7); }
+        .mode-btn-noob {
+            background: linear-gradient(145deg, rgba(100,200,255,0.12), rgba(100,150,255,0.08));
+            border-color: rgba(100,200,255,0.3);
+        }
+        .mode-btn-noob:hover { box-shadow: 0 8px 30px rgba(100,200,255,0.15); border-color: rgba(100,200,255,0.6); }
+        .mode-btn-icon { font-size: 36px; margin-bottom: 8px; }
+        .mode-btn-label { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+        .mode-btn-desc { font-size: 12px; opacity: 0.5; }
+        .mode-btn-pro .mode-btn-label { color: #ffd700; }
+        .mode-btn-pro .mode-btn-desc { color: rgba(255,215,0,0.6); }
+        .mode-btn-noob .mode-btn-label { color: #64c8ff; }
+        .mode-btn-noob .mode-btn-desc { color: rgba(100,200,255,0.6); }
+        .mode-btn-daily {
+            background: linear-gradient(145deg, rgba(255,100,255,0.12), rgba(200,50,255,0.08));
+            border-color: rgba(255,100,255,0.3);
+        }
+        .mode-btn-daily:hover { box-shadow: 0 8px 30px rgba(255,100,255,0.15); border-color: rgba(255,100,255,0.6); }
+        .mode-btn-daily .mode-btn-label { color: #ff64ff; }
+        .mode-btn-daily .mode-btn-desc { color: rgba(255,100,255,0.6); }
+        .daily-badge {
+            display: inline-block; background: linear-gradient(135deg, #ff64ff, #c832ff);
+            color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 8px;
+            margin-left: 4px; vertical-align: middle;
+        }
+        .daily-done { color: #64ff96; font-size: 12px; margin-top: 4px; }
+
+        /* 证书 */
+        .certificate {
+            background: linear-gradient(45deg, #2a1a0a, #1a1005);
+            border: 3px solid #ffd700; border-radius: 16px; padding: 30px 24px;
+            margin: 16px 0; position: relative; overflow: hidden;
+        }
+        .certificate::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse at center, rgba(255,215,0,0.05), transparent 70%);
+        }
+        .cert-title { font-size: 14px; color: rgba(255,215,0,0.5); letter-spacing: 4px; margin-bottom: 12px; }
+        .cert-text { font-size: 28px; font-weight: 900; color: #ffd700; margin: 12px 0; position: relative; }
+        .cert-sub { font-size: 13px; color: rgba(255,215,0,0.4); margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <!-- 模式选择 -->
+    <div class="mode-select" id="modeSelect">
+        <div class="mode-box">
+            <div class="mode-title">24 点</div>
+            <div class="mode-subtitle">选择你的挑战</div>
+            <div class="mode-buttons">
+                <div class="mode-btn mode-btn-pro" onclick="selectMode('pro')">
+                    <div class="mode-btn-icon">🏆</div>
+                    <div class="mode-btn-label">我是高手</div>
+                    <div class="mode-btn-desc">30s → 10s 极限通关</div>
+                </div>
+                <div class="mode-btn mode-btn-noob" onclick="selectMode('noob')">
+                    <div class="mode-btn-icon">🐣</div>
+                    <div class="mode-btn-label">我是菜鸟</div>
+                    <div class="mode-btn-desc">60s → 40s 轻松模式</div>
+                </div>
+            </div>
+            <div class="mode-buttons" style="margin-top:12px">
+                <div class="mode-btn mode-btn-daily" onclick="startDailyChallenge()" style="width:100%;max-width:340px">
+                    <div class="mode-btn-icon">📅</div>
+                    <div class="mode-btn-label">每日挑战 <span class="daily-badge">NEW</span></div>
+                    <div class="mode-btn-desc">每天5道固定题，和好友比谁更快</div>
+                    <div class="daily-done" id="dailyStatus"></div>
+                </div>
+            </div>
+            <!-- 首页排行榜 -->
+            <div id="homeRank" style="margin-top:20px;text-align:left">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <span style="color:rgba(255,215,0,0.6);font-size:13px;letter-spacing:2px">— 极限挑战排行 —</span>
+                    <span style="color:rgba(255,215,0,0.3);font-size:11px;cursor:pointer" onclick="showLeaderboard()">查看全部</span>
+                </div>
+                <div id="homeRankList" style="background:rgba(255,215,0,0.03);border:1px solid rgba(255,215,0,0.1);border-radius:12px;padding:10px 12px;min-height:60px">
+                    <div style="color:rgba(255,215,0,0.3);text-align:center;font-size:12px;padding:16px 0">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="particles" id="particles"></div>
+
+    <div class="game-container" id="gameContainer" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div class="game-title">24 点</div>
+            <button onclick="restartGame()" style="background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.2);border-radius:8px;padding:4px 12px;color:rgba(255,215,0,0.6);font-size:12px;cursor:pointer">首页</button>
+        </div>
+        <div class="game-subtitle">GAME OF TWENTY-FOUR</div>
+
+        <!-- 关卡信息栏 -->
+        <div class="level-bar">
+            <div class="level-name" id="levelName">第 1 关</div>
+            <div class="level-progress" id="levelProgress"></div>
+        </div>
+
+        <!-- 倒计时条 -->
+        <div class="countdown-bar">
+            <div class="countdown-text" id="countdownText">30s</div>
+            <div class="countdown-track">
+                <div class="countdown-fill" id="countdownFill" style="width: 100%"></div>
+            </div>
+        </div>
+
+        <!-- 统计栏 -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-label">得分</div>
+                <div class="stat-value" id="score">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">连胜</div>
+                <div class="stat-value" id="streak">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">已解</div>
+                <div class="stat-value" id="solved">0</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-label">最高</div>
+                <div class="stat-value" id="bestScore">0</div>
+            </div>
+        </div>
+
+        <!-- 卡牌区域 -->
+        <div class="cards-area" id="cardsArea">
+            <div class="card" onclick="onCardClick(0)">
+                <div class="card-number" id="card0"></div>
+                <div class="card-suit" id="suit0"></div>
+            </div>
+            <div class="card" onclick="onCardClick(1)">
+                <div class="card-number" id="card1"></div>
+                <div class="card-suit" id="suit1"></div>
+            </div>
+            <div class="card" onclick="onCardClick(2)">
+                <div class="card-number" id="card2"></div>
+                <div class="card-suit" id="suit2"></div>
+            </div>
+            <div class="card" onclick="onCardClick(3)">
+                <div class="card-number" id="card3"></div>
+                <div class="card-suit" id="suit3"></div>
+            </div>
+        </div>
+
+        <!-- 表达式输入 -->
+        <div class="expression-area">
+            <div class="expression-display empty" id="expression">点击卡牌和运算符输入</div>
+        </div>
+
+        <!-- 运算符按钮 -->
+        <div class="operators-area">
+            <button class="op-btn" onclick="appendOp('+')">+</button>
+            <button class="op-btn" onclick="appendOp('-')">-</button>
+            <button class="op-btn" onclick="appendOp('*')">*</button>
+            <button class="op-btn" onclick="appendOp('/')">/</button>
+        </div>
+        <div class="operators-area" style="margin-bottom:16px">
+            <button class="op-btn" onclick="appendOp('(')">(</button>
+            <button class="op-btn" onclick="appendOp(')')">)</button>
+            <button class="op-btn" onclick="backspace()" style="font-size:16px">⌫</button>
+        </div>
+
+        <!-- 功能按钮 -->
+        <div class="action-area">
+            <button class="action-btn btn-clear" onclick="clearExpr()">清空</button>
+            <button class="action-btn btn-hint" onclick="showHint()">提示</button>
+            <button class="action-btn btn-submit" onclick="submitAnswer()">提交</button>
+        </div>
+
+        <div class="action-area" style="margin-bottom: 12px">
+            <button class="action-btn btn-new" onclick="skipPuzzle()">跳过</button>
+            <button class="action-btn btn-extreme" id="btnExtreme" onclick="startExtremeMode()" disabled>极限挑战</button>
+            <button class="action-btn btn-rank" onclick="showLeaderboard()">排行榜</button>
+        </div>
+
+        <!-- 消息区域 -->
+        <div class="message-area">
+            <div class="message info" id="message">点击卡牌或输入表达式，用 + - * / 和括号算出 24</div>
+        </div>
+    </div>
+
+    <script>
+        // ========== 24点核心算法 ==========
+        const TARGET = 24;
+        const EPS = 1e-6;
+
+        function canSolve(nums) { return solve(nums.map(n => n)); }
+
+        function solve(numbers) {
+            if (numbers.length === 1) return Math.abs(numbers[0] - TARGET) < EPS;
+            for (let i = 0; i < numbers.length; i++) {
+                for (let j = 0; j < numbers.length; j++) {
+                    if (i === j) continue;
+                    const next = numbers.filter((_, k) => k !== i && k !== j);
+                    const a = numbers[i], b = numbers[j];
+                    next.push(a + b); if (solve(next)) return true; next.pop();
+                    next.push(a - b); if (solve(next)) return true; next.pop();
+                    next.push(a * b); if (solve(next)) return true; next.pop();
+                    if (Math.abs(b) > EPS) { next.push(a / b); if (solve(next)) return true; next.pop(); }
+                }
+            }
+            return false;
+        }
+
+        function findSolution(nums) {
+            const result = findExpr(nums.map(n => n), nums.map(n => String(n)));
+            return result || '无解';
+        }
+
+        function findExpr(numbers, expressions) {
+            if (numbers.length === 1) {
+                return Math.abs(numbers[0] - TARGET) < EPS ? expressions[0] : null;
+            }
+            for (let i = 0; i < numbers.length; i++) {
+                for (let j = 0; j < numbers.length; j++) {
+                    if (i === j) continue;
+                    const nextNums = [], nextExprs = [];
+                    for (let k = 0; k < numbers.length; k++) {
+                        if (k !== i && k !== j) { nextNums.push(numbers[k]); nextExprs.push(expressions[k]); }
+                    }
+                    const a = numbers[i], b = numbers[j], eA = expressions[i], eB = expressions[j];
+                    const ops = [[a+b,`(${eA}+${eB})`],[a-b,`(${eA}-${eB})`],[a*b,`(${eA}*${eB})`]];
+                    if (Math.abs(b) > EPS) ops.push([a/b,`(${eA}/${eB})`]);
+                    for (const [val, expr] of ops) {
+                        nextNums.push(val); nextExprs.push(expr);
+                        const sol = findExpr(nextNums, nextExprs);
+                        if (sol) return sol;
+                        nextNums.pop(); nextExprs.pop();
+                    }
+                }
+            }
+            return null;
+        }
+
+        // ========== 表达式求值 ==========
+        function evaluateExpression(expr) {
+            expr = expr.replace(/\s+/g, '');
+            let pos = 0;
+            function parse() {
+                let r = parseTerm();
+                while (pos < expr.length) { if (expr[pos]==='+') { pos++; r+=parseTerm(); } else if (expr[pos]==='-') { pos++; r-=parseTerm(); } else break; }
+                return r;
+            }
+            function parseTerm() {
+                let r = parseFactor();
+                while (pos < expr.length) { if (expr[pos]==='*') { pos++; r*=parseFactor(); } else if (expr[pos]==='/') { pos++; const d=parseFactor(); if(Math.abs(d)<EPS) throw new Error('除数不能为0'); r/=d; } else break; }
+                return r;
+            }
+            function parseFactor() {
+                if (pos < expr.length && expr[pos]==='(') { pos++; const r=parse(); pos++; return r; }
+                let sign=1; if (pos<expr.length && expr[pos]==='-') { sign=-1; pos++; }
+                const start=pos; while (pos<expr.length && (expr[pos]>='0'&&expr[pos]<='9'||expr[pos]==='.')) pos++;
+                if (start===pos) throw new Error('表达式格式错误');
+                return sign*parseFloat(expr.substring(start,pos));
+            }
+            const result = parse(); if (pos !== expr.length) throw new Error('表达式格式错误'); return result;
+        }
+
+        function validateExpression(expression, nums) {
+            const expr = expression.replace(/\s+/g, '');
+            if (!/^[0-9+\-*/().]+$/.test(expr)) return { success: false, message: '表达式包含非法字符' };
+            const usedNums = []; const re = /\d+/g; let match;
+            while ((match = re.exec(expr)) !== null) usedNums.push(parseInt(match[0]));
+            const required = [...nums].sort((a,b)=>a-b), used = [...usedNums].sort((a,b)=>a-b);
+            if (used.length !== required.length || !used.every((v,i)=>v===required[i]))
+                return { success: false, message: '请使用给定的4个数字各一次' };
+            try {
+                const result = evaluateExpression(expr);
+                if (Math.abs(result - TARGET) < EPS) return { success: true, message: '正确！' };
+                else return { success: false, message: `结果为 ${result.toFixed(2)}，不等于 24` };
+            } catch (e) { return { success: false, message: '表达式格式错误：' + e.message }; }
+        }
+
+        // ========== 游戏状态 ==========
+        let currentNums = [];
+        let score = 0;
+        let streak = 0;
+        let solved = 0;
+        let hintUsed = false;
+        let gameActive = true;
+
+        // 关卡系统
+        const LEVELS_PRO = [
+            { name: '第 1 关', time: 30 },
+            { name: '第 2 关', time: 25 },
+            { name: '第 3 关', time: 20 },
+            { name: '第 4 关', time: 15 },
+            { name: '第 5 关', time: 10 },
+        ];
+        const LEVELS_NOOB = [
+            { name: '第 1 关', time: 60 },
+            { name: '第 2 关', time: 55 },
+            { name: '第 3 关', time: 50 },
+            { name: '第 4 关', time: 45 },
+            { name: '第 5 关', time: 40 },
+        ];
+        let LEVELS = LEVELS_PRO;
+        let gameMode = 'pro'; // 'pro' or 'noob'
+        const EXTREME_TIME = 100;
+        let currentLevel = 0;       // 0-4 for normal levels, -1 for extreme
+        let levelsCompleted = 0;     // how many levels completed (0-5)
+        let extremeUnlocked = false;
+
+        // 倒计时
+        let countdownInterval = null;
+        let timeRemaining = 0;
+        let totalTime = 0;
+
+        // 极限模式
+        let isExtremeMode = false;
+        let extremeSolved = 0;
+        let bestExtremeScore = parseInt(localStorage.getItem('game24_best') || '0');
+
+        const suits = ['♠', '♥', '♦', '♣'];
+        const suitColors = { '♠': 'black', '♥': 'red', '♦': 'red', '♣': 'black' };
+        const faceNames = { 1: 'A', 11: 'J', 12: 'Q', 13: 'K' };
+        function getDisplay(num) { return faceNames[num] || String(num); }
+
+        // ========== 关卡与倒计时 ==========
+        function getLevelConfig() {
+            if (isExtremeMode) return { name: '极限挑战', time: EXTREME_TIME };
+            return LEVELS[currentLevel];
+        }
+
+        function renderLevelProgress() {
+            const container = document.getElementById('levelProgress');
+            container.innerHTML = '';
+            // 5 normal levels + 1 extreme
+            for (let i = 0; i < 5; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'level-dot';
+                if (i < levelsCompleted) dot.classList.add('completed');
+                else if (i === currentLevel && !isExtremeMode) dot.classList.add('current');
+                else if (i > levelsCompleted) dot.classList.add('locked');
+                container.appendChild(dot);
+            }
+            // extreme dot
+            const extDot = document.createElement('div');
+            extDot.className = 'level-dot';
+            if (isExtremeMode) extDot.classList.add('current');
+            else if (extremeUnlocked) extDot.style.background = 'rgba(255,0,255,0.4)';
+            else extDot.classList.add('locked');
+            extDot.style.borderColor = isExtremeMode ? '#ff00ff' : (extremeUnlocked ? 'rgba(255,0,255,0.5)' : '');
+            container.appendChild(extDot);
+        }
+
+        function updateLevelDisplay() {
+            const config = getLevelConfig();
+            document.getElementById('levelName').textContent = config.name;
+            renderLevelProgress();
+        }
+
+        function startCountdown(seconds) {
+            stopCountdown();
+            timeRemaining = seconds;
+            totalTime = seconds;
+            gameActive = true;
+            countdownPaused = false;
+            updateCountdownUI();
+
+            countdownInterval = setInterval(() => {
+                timeRemaining--;
+                updateCountdownUI();
+
+                if (timeRemaining <= 0) {
+                    stopCountdown();
+                    onTimeUp();
+                }
+            }, 1000);
+        }
+
+        function stopCountdown() {
+            if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+        }
+
+        function updateCountdownUI() {
+            const pct = Math.max(0, (timeRemaining / totalTime) * 100);
+            const fill = document.getElementById('countdownFill');
+            const text = document.getElementById('countdownText');
+
+            fill.style.width = pct + '%';
+            text.textContent = timeRemaining + 's';
+
+            const isDanger = timeRemaining <= 5 || (totalTime >= 60 && timeRemaining <= 10);
+            fill.className = 'countdown-fill' + (isDanger ? ' danger' : '');
+            text.className = 'countdown-text' + (isDanger ? ' danger' : '');
+        }
+
+        function onTimeUp() {
+            gameActive = false;
+            if (isExtremeMode) {
+                endExtremeMode();
+            } else if (isDailyMode) {
+                dailyTimeUp();
+            } else {
+                showTimeUpOverlay();
+            }
+        }
+
+        function showTimeUpOverlay() {
+            const isLastLevel = currentLevel >= LEVELS.length - 1;
+            let html = `<div class="overlay-title">时间到！</div>`;
+            html += `<div class="overlay-text">第 ${currentLevel + 1} 关未通过</div>`;
+            html += `<div style="margin-top: 20px">`;
+            html += `<button class="overlay-btn overlay-btn-primary" onclick="retryLevel()">重试本关</button>`;
+            html += `<button class="overlay-btn overlay-btn-secondary" onclick="restartGame()">从头开始</button>`;
+            html += `</div>`;
+            showOverlay(html);
+        }
+
+        // ========== 游戏逻辑 ==========
+        function newGame() {
+            isExtremeMode = false;
+            currentLevel = Math.min(levelsCompleted, LEVELS.length - 1);
+            const config = getLevelConfig();
+
+            generatePuzzle();
+            updateLevelDisplay();
+            startCountdown(config.time);
+            updateStats();
+            updateExtremeButton();
+            setMessage('info', `${config.name} — ${config.time}秒内算出24`);
+        }
+
+        function generatePuzzle() {
+            do {
+                currentNums = Array.from({ length: 4 }, () => Math.floor(Math.random() * 13) + 1);
+            } while (!canSolve(currentNums));
+            hintUsed = false;
+            clearExpr();
+            renderCards();
+        }
+
+        function renderCards() {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, i) => {
+                card.classList.add('flipping');
+                setTimeout(() => card.classList.remove('flipping'), 500);
+                const num = currentNums[i];
+                const suit = suits[i % 4];
+                document.getElementById(`card${i}`).textContent = getDisplay(num);
+                const suitEl = document.getElementById(`suit${i}`);
+                suitEl.textContent = suit;
+                suitEl.className = `card-suit ${suitColors[suit]}`;
+            });
+        }
+
+        function getExpr() { const t = document.getElementById('expression').textContent; return t === '点击卡牌和运算符输入' ? '' : t; }
+        function setExpr(val) {
+            const el = document.getElementById('expression');
+            if (val) { el.textContent = val; el.classList.remove('empty'); }
+            else { el.textContent = '点击卡牌和运算符输入'; el.classList.add('empty'); }
+        }
+
+        function onCardClick(index) {
+            if (!gameActive) return;
+            setExpr(getExpr() + currentNums[index]);
+            const card = document.querySelectorAll('.card')[index];
+            card.classList.add('selected');
+            setTimeout(() => card.classList.remove('selected'), 200);
+        }
+
+        // 隐藏功能：连续10次点+号暂停/恢复倒计时
+        let plusClickTimes = [];
+        let countdownPaused = false;
+
+        function appendOp(op) {
+            if (!gameActive) return;
+            setExpr(getExpr() + op);
+
+            // 隐藏检测：连续10次点+号（间隔<800ms）
+            if (op === '+') {
+                const now = Date.now();
+                plusClickTimes.push(now);
+                // 只保留最近10次
+                if (plusClickTimes.length > 10) plusClickTimes.shift();
+                // 检查最近10次是否都在800ms内
+                if (plusClickTimes.length === 10 && (now - plusClickTimes[0] < 8000)) {
+                    plusClickTimes = [];
+                    toggleCountdownPause();
+                }
+            } else {
+                plusClickTimes = [];
+            }
+        }
+
+        function toggleCountdownPause() {
+            if (countdownPaused) {
+                // 恢复
+                countdownPaused = false;
+                const config = getLevelConfig();
+                startCountdown(timeRemaining);
+                setMessage('info', '倒计时已恢复');
+            } else {
+                // 暂停
+                countdownPaused = true;
+                stopCountdown();
+                setMessage('info', '');
+            }
+        }
+
+        function backspace() {
+            const cur = getExpr();
+            setExpr(cur.slice(0, -1));
+        }
+
+        function clearExpr() { setExpr(''); }
+
+        function submitAnswer() {
+            if (!gameActive) return;
+            const expr = getExpr().trim();
+            if (!expr) { setMessage('error', '请先输入表达式'); return; }
+            const result = validateExpression(expr, currentNums);
+            if (result.success) {
+                streak++;
+                solved++;
+                if (isExtremeMode) {
+                    extremeSolved++;
+                    score += 10 + Math.max(0, timeRemaining);
+                    setMessage('success', `${result.message} +${10 + Math.max(0, timeRemaining)}分`);
+                } else {
+                    const points = 10 + Math.max(0, timeRemaining);
+                    score += points;
+                    setMessage('success', `${result.message} +${points}分`);
+                }
+                updateStats();
+                celebrateCards();
+                // 自动下一题
+                setTimeout(() => {
+                    if (!gameActive) return;
+                    if (isDailyMode) {
+                        dailySolvedCount++;
+                        dailyNextPuzzle();
+                    } else if (isExtremeMode) {
+                        generatePuzzle();
+                    } else {
+                        // 过关
+                        if (currentLevel < levelsCompleted) {
+                            // 已通过的关，继续玩当前关
+                            generatePuzzle();
+                        } else {
+                            // 刚通过新关
+                            levelsCompleted = Math.max(levelsCompleted, currentLevel + 1);
+                            if (levelsCompleted >= LEVELS.length) {
+                                extremeUnlocked = true;
+                                updateExtremeButton();
+                                // 全部通关，显示证书
+                                showCertificate();
+                                return;
+                            }
+                            // 进入下一关
+                            currentLevel = Math.min(levelsCompleted, LEVELS.length - 1);
+                            const config = getLevelConfig();
+                            updateLevelDisplay();
+                            startCountdown(config.time);
+                            generatePuzzle();
+                            setMessage('info', `${config.name} — ${config.time}秒内算出24`);
+                        }
+                    }
+                }, 1200);
+            } else {
+                setMessage('error', result.message);
+            }
+        }
+
+        function skipPuzzle() {
+            if (!gameActive) return;
+            if (isDailyMode) {
+                streak = 0;
+                dailyNextPuzzle();
+                return;
+            }
+            if (!isExtremeMode) {
+                // 关卡模式跳过算失败
+                streak = 0;
+                updateStats();
+            }
+            generatePuzzle();
+            setMessage('info', isExtremeMode ? '已跳过，继续答题' : '已跳过');
+        }
+
+        function showHint() {
+            if (!gameActive) return;
+            const solution = findSolution(currentNums);
+            hintUsed = true;
+            setMessage('hint', `提示：${solution}`);
+        }
+
+        function retryLevel() {
+            hideOverlay();
+            const config = getLevelConfig();
+            streak = 0;
+            generatePuzzle();
+            updateLevelDisplay();
+            startCountdown(config.time);
+            updateStats();
+            setMessage('info', `${config.name} — ${config.time}秒内算出24`);
+        }
+
+        function restartGame() {
+            hideOverlay();
+            score = 0; streak = 0; solved = 0;
+            levelsCompleted = 0; currentLevel = 0;
+            extremeUnlocked = false; isExtremeMode = false;
+            isDailyMode = false;
+            document.getElementById('gameContainer').classList.remove('extreme-mode');
+            document.getElementById('gameContainer').style.display = 'none';
+            document.getElementById('modeSelect').style.display = 'flex';
+            updateDailyStatus();
+        }
+
+        // ========== 极限挑战模式 ==========
+        function startExtremeMode() {
+            if (!extremeUnlocked) return;
+            hideOverlay();
+            isExtremeMode = true;
+            extremeSolved = 0;
+            document.getElementById('gameContainer').classList.add('extreme-mode');
+            generatePuzzle();
+            updateLevelDisplay();
+            startCountdown(EXTREME_TIME);
+            setMessage('info', '极限挑战！100秒内尽可能多解题');
+        }
+
+        function endExtremeMode() {
+            gameActive = false;
+            stopCountdown();
+            document.getElementById('gameContainer').classList.remove('extreme-mode');
+
+            const isNewBest = extremeSolved > bestExtremeScore;
+            if (isNewBest) {
+                bestExtremeScore = extremeSolved;
+                localStorage.setItem('game24_best', String(bestExtremeScore));
+            }
+            updateStats();
+
+            let html = `<div class="overlay-title">极限挑战结束</div>`;
+            html += `<div class="overlay-text">100秒内解题数</div>`;
+            html += `<div class="overlay-highlight">${extremeSolved}</div>`;
+            if (isNewBest) html += `<div class="overlay-text" style="color:#64ff96">新纪录！</div>`;
+            html += `<div class="overlay-best">历史最高：${bestExtremeScore}</div>`;
+            html += `<div style="margin-top: 20px">`;
+            html += `<button class="overlay-btn overlay-btn-primary" onclick="startExtremeMode()">再来一次</button>`;
+            html += `<button class="overlay-btn overlay-btn-secondary" onclick="restartGame()">返回首页</button>`;
+            html += `</div>`;
+            if (extremeSolved > 0) {
+                html += `<div style="margin-top: 10px">`;
+                html += `<button class="overlay-btn overlay-btn-secondary" onclick="submitToLeaderboard('extreme',${extremeSolved})">提交排行榜</button>`;
+                html += `</div>`;
+            }
+            html += `<div style="margin-top: 10px">`;
+            html += `<button class="overlay-btn overlay-btn-secondary" onclick="shareCard('extreme',${extremeSolved})">分享成绩</button>`;
+            html += `</div>`;
+            showOverlay(html);
+        }
+
+        function updateExtremeButton() {
+            const btn = document.getElementById('btnExtreme');
+            btn.disabled = !extremeUnlocked;
+        }
+
+        // ========== UI工具 ==========
+        function setMessage(type, text) {
+            const msgEl = document.getElementById('message');
+            msgEl.className = `message ${type}`;
+            msgEl.textContent = text;
+        }
+
+        function updateStats() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('streak').textContent = streak;
+            document.getElementById('solved').textContent = solved;
+            document.getElementById('bestScore').textContent = bestExtremeScore;
+        }
+
+        function celebrateCards() {
+            const cards = document.querySelectorAll('.card');
+            cards.forEach((card, i) => {
+                setTimeout(() => {
+                    card.classList.add('celebrate');
+                    setTimeout(() => card.classList.remove('celebrate'), 400);
+                }, i * 100);
+            });
+        }
+
+        function showOverlay(html) {
+            let overlay = document.getElementById('overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'overlay';
+                overlay.className = 'overlay';
+                document.body.appendChild(overlay);
+            }
+            overlay.innerHTML = `<div class="overlay-content">${html}</div>`;
+            overlay.style.display = 'flex';
+        }
+
+        function hideOverlay() {
+            const overlay = document.getElementById('overlay');
+            if (overlay) overlay.style.display = 'none';
+        }
+
+        // ========== 模式选择与证书 ==========
+        function selectMode(mode) {
+            gameMode = mode;
+            LEVELS = mode === 'pro' ? LEVELS_PRO : LEVELS_NOOB;
+            document.getElementById('modeSelect').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'block';
+            newGame();
+        }
+
+        function showCertificate() {
+            stopCountdown();
+            gameActive = false;
+            const isPro = gameMode === 'pro';
+            const certText = isPro ? '你可真是个天才' : '也不算太菜';
+            const modeLabel = isPro ? '高手模式' : '菜鸟模式';
+
+            let html = `<div class="overlay-title">全部通关！</div>`;
+            html += `<div class="overlay-text">${modeLabel} · 5关全通</div>`;
+            html += `<div class="certificate">`;
+            html += `<div class="cert-title">— 通关证书 —</div>`;
+            html += `<div class="cert-text">${certText}</div>`;
+            html += `<div class="cert-sub">24点游戏 · ${modeLabel} · 总分 ${score}</div>`;
+            html += `</div>`;
+            html += `<div style="margin-top: 16px">`;
+            html += `<button class="overlay-btn overlay-btn-primary" onclick="startExtremeMode()">极限挑战</button>`;
+            html += `<button class="overlay-btn overlay-btn-secondary" onclick="restartGame()">重新开始</button>`;
+            html += `</div>`;
+            html += `<div style="margin-top: 10px">`;
+            html += `<button class="overlay-btn overlay-btn-secondary" onclick="shareCard('certificate',${score})">分享证书</button>`;
+            html += `</div>`;
+            showOverlay(html);
+        }
+
+        // ========== 分享卡片 ==========
+        function shareCard(type, value) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 600; canvas.height = 400;
+            const ctx = canvas.getContext('2d');
+
+            // 背景渐变
+            const grad = ctx.createLinearGradient(0, 0, 600, 400);
+            grad.addColorStop(0, '#0c0c1d');
+            grad.addColorStop(0.5, '#1a1a3e');
+            grad.addColorStop(1, '#0c0c1d');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, 600, 400);
+
+            // 装饰光晕
+            const glow = ctx.createRadialGradient(300, 200, 0, 300, 200, 250);
+            glow.addColorStop(0, 'rgba(255,215,0,0.08)');
+            glow.addColorStop(1, 'transparent');
+            ctx.fillStyle = glow;
+            ctx.fillRect(0, 0, 600, 400);
+
+            // 边框
+            ctx.strokeStyle = 'rgba(255,215,0,0.3)';
+            ctx.lineWidth = 2;
+            ctx.roundRect(20, 20, 560, 360, 16);
+            ctx.stroke();
+
+            // 标题
+            ctx.fillStyle = '#ffd700';
+            ctx.font = 'bold 42px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('24 点', 300, 90);
+
+            // 副标题
+            ctx.fillStyle = 'rgba(255,215,0,0.5)';
+            ctx.font = '14px sans-serif';
+            ctx.fillText('GAME OF TWENTY-FOUR', 300, 115);
+
+            if (type === 'certificate') {
+                const isPro = gameMode === 'pro';
+                const certText = isPro ? '你可真是个天才' : '也不算太菜';
+                const modeLabel = isPro ? '高手模式' : '菜鸟模式';
+
+                // 证书框
+                ctx.strokeStyle = '#ffd700';
+                ctx.lineWidth = 2;
+                ctx.roundRect(60, 140, 480, 140, 12);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(255,215,0,0.4)';
+                ctx.font = '13px sans-serif';
+                ctx.fillText('— 通关证书 —', 300, 170);
+
+                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 32px sans-serif';
+                ctx.fillText(certText, 300, 220);
+
+                ctx.fillStyle = 'rgba(255,215,0,0.4)';
+                ctx.font = '13px sans-serif';
+                ctx.fillText(`${modeLabel} · 总分 ${value}`, 300, 260);
+            } else if (type === 'daily') {
+                // 每日挑战
+                const d = new Date();
+                const dateStr = `${d.getMonth()+1}月${d.getDate()}日`;
+
+                ctx.strokeStyle = '#ff64ff';
+                ctx.lineWidth = 2;
+                ctx.roundRect(60, 140, 480, 140, 12);
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(255,100,255,0.4)';
+                ctx.font = '13px sans-serif';
+                ctx.fillText('— 每日挑战 —', 300, 170);
+
+                ctx.fillStyle = '#ff64ff';
+                ctx.font = 'bold 32px sans-serif';
+                ctx.fillText(`${dateStr} · ${value}秒`, 300, 220);
+
+                ctx.fillStyle = 'rgba(255,100,255,0.4)';
+                ctx.font = '13px sans-serif';
+                ctx.fillText(`解出 ${dailySolvedCount}/5 题`, 300, 260);
+            } else {
+                // 极限挑战
+                ctx.fillStyle = '#e0e0e0';
+                ctx.font = '18px sans-serif';
+                ctx.fillText('极限挑战 · 100秒', 300, 170);
+
+                ctx.fillStyle = '#ffd700';
+                ctx.font = 'bold 64px sans-serif';
+                ctx.fillText(String(value), 300, 250);
+
+                ctx.fillStyle = 'rgba(255,215,0,0.5)';
+                ctx.font = '16px sans-serif';
+                ctx.fillText('题', 300 + ctx.measureText(String(value)).width/2 + 16, 240);
+            }
+
+            // 底部
+            ctx.fillStyle = 'rgba(255,215,0,0.3)';
+            ctx.font = '13px sans-serif';
+            ctx.fillText('长按保存图片，分享给好友挑战', 300, 340);
+
+            ctx.fillStyle = 'rgba(255,215,0,0.2)';
+            ctx.font = '12px sans-serif';
+            ctx.fillText('d-l123456.github.io/game24/', 300, 365);
+
+            // 显示分享图
+            const dataUrl = canvas.toDataURL('image/png');
+            let shareHtml = `<div class="overlay-title">分享成绩</div>`;
+            shareHtml += `<div class="overlay-text">长按图片保存，发到朋友圈挑战好友</div>`;
+            shareHtml += `<img src="${dataUrl}" style="width:100%;border-radius:12px;margin:12px 0;border:1px solid rgba(255,215,0,0.2);">`;
+            shareHtml += `<button class="overlay-btn overlay-btn-primary" onclick="hideOverlay()">关闭</button>`;
+            showOverlay(shareHtml);
+        }
+
+        // ========== 每日挑战 ==========
+        let isDailyMode = false;
+        let dailyPuzzles = [];      // 5道固定题
+        let dailyIndex = 0;         // 当前第几题(0-4)
+        let dailyStartTime = 0;     // 开始时间戳
+        let dailySolvedCount = 0;   // 已解出几题
+
+        // 用日期做种子的伪随机
+        function seededRandom(seed) {
+            let s = seed;
+            return function() {
+                s = (s * 9301 + 49297) % 233280;
+                return s / 233280;
+            };
+        }
+
+        function getTodaySeed() {
+            const d = new Date();
+            return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+        }
+
+        function generateDailyPuzzles() {
+            const rng = seededRandom(getTodaySeed());
+            const puzzles = [];
+            for (let i = 0; i < 5; i++) {
+                let nums;
+                do {
+                    nums = Array.from({ length: 4 }, () => Math.floor(rng() * 13) + 1);
+                } while (!canSolve(nums));
+                puzzles.push(nums);
+            }
+            return puzzles;
+        }
+
+        function getDailyKey() { return 'game24_daily_' + getTodaySeed(); }
+
+        function getDailyRecord() {
+            try { return JSON.parse(localStorage.getItem(getDailyKey())); } catch { return null; }
+        }
+
+        function saveDailyRecord(time, solved) {
+            const prev = getDailyRecord();
+            if (!prev || time < prev.time) {
+                localStorage.setItem(getDailyKey(), JSON.stringify({ time, solved, date: getTodaySeed() }));
+            }
+        }
+
+        function updateDailyStatus() {
+            const el = document.getElementById('dailyStatus');
+            if (!el) return;
+            const rec = getDailyRecord();
+            if (rec) {
+                el.textContent = `今日最佳：${rec.time}秒（解出${rec.solved}/5题）`;
+            } else {
+                el.textContent = '';
+            }
+        }
+
+        function startDailyChallenge() {
+            isDailyMode = true;
+            isExtremeMode = false;
+            dailyPuzzles = generateDailyPuzzles();
+            dailyIndex = 0;
+            dailySolvedCount = 0;
+            dailyStartTime = Date.now();
+            score = 0; streak = 0; solved = 0;
+            levelsCompleted = 0; currentLevel = 0;
+            extremeUnlocked = false;
+
+            document.getElementById('modeSelect').style.display = 'none';
+            document.getElementById('gameContainer').style.display = 'block';
+            document.getElementById('gameContainer').classList.remove('extreme-mode');
+
+            // 加载今日固定题目
+            currentNums = [...dailyPuzzles[0]];
+            hintUsed = false;
+            clearExpr();
+            renderCards();
+
+            // 显示每日挑战UI
+            document.getElementById('levelName').textContent = '每日挑战 1/5';
+            renderDailyProgress();
+            startCountdown(60);
+            updateStats();
+            document.getElementById('btnExtreme').disabled = true;
+            setMessage('info', '每日挑战！60秒内算出24');
+        }
+
+        function renderDailyProgress() {
+            const container = document.getElementById('levelProgress');
+            container.innerHTML = '';
+            for (let i = 0; i < 5; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'level-dot';
+                if (i < dailySolvedCount) dot.classList.add('completed');
+                else if (i === dailyIndex) dot.classList.add('current');
+                else dot.classList.add('locked');
+                container.appendChild(dot);
+            }
+        }
+
+        function dailyNextPuzzle() {
+            dailyIndex++;
+            if (dailyIndex >= 5) {
+                // 全部完成
+                const elapsed = Math.round((Date.now() - dailyStartTime) / 1000);
+                saveDailyRecord(elapsed, dailySolvedCount);
+                endDailyChallenge(elapsed);
+                return;
+            }
+            currentNums = [...dailyPuzzles[dailyIndex]];
+            hintUsed = false;
+            clearExpr();
+            renderCards();
+            document.getElementById('levelName').textContent = `每日挑战 ${dailyIndex + 1}/5`;
+            renderDailyProgress();
+            startCountdown(60);
+            setMessage('info', `第${dailyIndex + 1}题 — 60秒内算出24`);
+        }
+
+        function endDailyChallenge(elapsed) {
+            gameActive = false;
+            stopCountdown();
+            isDailyMode = false;
+            const rec = getDailyRecord();
+
+            let html = `<div class="overlay-title">每日挑战完成</div>`;
+            html += `<div class="overlay-text">解出 ${dailySolvedCount}/5 题</div>`;
+            html += `<div class="overlay-highlight">${elapsed} 秒</div>`;
+            if (rec && rec.time === elapsed) html += `<div class="overlay-text" style="color:#64ff96">今日最佳！</div>`;
+            html += `<div style="margin-top: 20px">`;
+            html += `<button class="overlay-btn overlay-btn-primary" onclick="startDailyChallenge()">再来一次</button>`;
+            html += `<button class="overlay-btn overlay-btn-secondary" onclick="restartGame()">返回首页</button>`;
+            html += `</div>`;
+            if (dailySolvedCount > 0) {
+                html += `<div style="margin-top: 10px">`;
+                html += `<button class="overlay-btn overlay-btn-secondary" onclick="submitToLeaderboard('daily',${-elapsed})">提交排行榜</button>`;
+                html += `</div>`;
+            }
+            html += `<div style="margin-top: 10px">`;
+            html += `<button class="overlay-btn overlay-btn-secondary" onclick="shareCard('daily',${elapsed})">分享成绩</button>`;
+            html += `</div>`;
+            showOverlay(html);
+        }
+
+        function dailyTimeUp() {
+            // 超时跳到下一题
+            streak = 0;
+            dailyNextPuzzle();
+        }
+
+        // ========== 全球排行榜 ==========
+        const LB_API = 'https://game-leaderboard.lkgame24.workers.dev';
+        let lbName = localStorage.getItem('game24_lb_name') || '';
+
+        function showLeaderboard() {
+            let html = `<div class="overlay-title">全球排行榜</div>`;
+
+            // 昵称输入
+            html += `<div style="margin:12px 0;display:flex;gap:8px;align-items:center;justify-content:center">`;
+            html += `<span style="color:rgba(255,215,0,0.6);font-size:13px">昵称</span>`;
+            html += `<input id="lbNameInput" value="${lbName}" maxlength="20" style="background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:8px;padding:6px 12px;color:#ffd700;font-size:14px;width:120px;outline:none">`;
+            html += `</div>`;
+
+            // Tab切换
+            html += `<div style="display:flex;gap:8px;margin-bottom:12px;justify-content:center">`;
+            html += `<button class="overlay-btn overlay-btn-primary" style="font-size:12px;padding:6px 14px" onclick="loadRank('extreme')">极限挑战</button>`;
+            html += `<button class="overlay-btn overlay-btn-secondary" style="font-size:12px;padding:6px 14px" onclick="loadRank('daily')">每日挑战</button>`;
+            html += `</div>`;
+
+            html += `<div id="rankList" style="min-height:200px;text-align:left;font-size:13px">`;
+            html += `<div style="color:rgba(255,215,0,0.4);text-align:center;padding:40px 0">点击上方标签查看排行</div>`;
+            html += `</div>`;
+
+            html += `<button class="overlay-btn overlay-btn-secondary" onclick="hideOverlay()" style="margin-top:12px">关闭</button>`;
+            showOverlay(html);
+        }
+
+        async function loadRank(mode) {
+            // 保存昵称
+            const nameInput = document.getElementById('lbNameInput');
+            if (nameInput) {
+                lbName = nameInput.value.trim() || '匿名玩家';
+                localStorage.setItem('game24_lb_name', lbName);
+            }
+
+            const listEl = document.getElementById('rankList');
+            if (!listEl) return;
+            listEl.innerHTML = `<div style="color:rgba(255,215,0,0.4);text-align:center;padding:40px 0">加载中...</div>`;
+
+            try {
+                const ctrl = new AbortController();
+                const timer = setTimeout(() => ctrl.abort(), 8000);
+                const resp = await fetch(`${LB_API}/rank?game=game24&mode=${mode}&limit=20`, { signal: ctrl.signal });
+                clearTimeout(timer);
+                const data = await resp.json();
+
+                if (!data.length) {
+                    listEl.innerHTML = `<div style="color:rgba(255,215,0,0.4);text-align:center;padding:40px 0">暂无记录，快来第一个上榜！</div>`;
+                    return;
+                }
+
+                let html = `<div style="background:rgba(255,215,0,0.05);border-radius:10px;padding:8px 12px">`;
+                data.forEach((entry, i) => {
+                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span style="color:rgba(255,215,0,0.4)">${i+1}</span>`;
+                    const scoreLabel = mode === 'extreme' ? `${entry.score}题` : `${Math.abs(entry.score)}秒`;
+                    const timeStr = new Date(entry.time).toLocaleDateString('zh-CN');
+                    html += `<div style="display:flex;align-items:center;padding:6px 0;${i>0?'border-top:1px solid rgba(255,215,0,0.08)':''}">`;
+                    html += `<span style="width:30px;text-align:center">${medal}</span>`;
+                    html += `<span style="flex:1;color:#e0e0e0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${entry.name}</span>`;
+                    html += `<span style="color:#ffd700;font-weight:700;margin:0 8px">${scoreLabel}</span>`;
+                    html += `<span style="color:rgba(255,215,0,0.3);font-size:11px">${timeStr}</span>`;
+                    html += `</div>`;
+                });
+                html += `</div>`;
+                listEl.innerHTML = html;
+            } catch (e) {
+                listEl.innerHTML = `<div style="color:#ff6464;text-align:center;padding:40px 0">网络连接失败，请重试</div>`;
+            }
+        }
+
+        async function submitToLeaderboard(mode, score) {
+            if (!lbName) {
+                lbName = localStorage.getItem('game24_lb_name') || '';
+            }
+            if (!lbName) {
+                // 用overlay弹窗输入昵称，不用prompt（手机端prompt会被拦截）
+                showNameInput(mode, score);
+                return;
+            }
+            try {
+                const ctrl = new AbortController();
+                const timer = setTimeout(() => ctrl.abort(), 5000);
+                const resp = await fetch(`${LB_API}/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ game: 'game24', mode, name: lbName, score }),
+                    signal: ctrl.signal
+                });
+                clearTimeout(timer);
+                if (!resp.ok) console.warn('LB submit failed:', resp.status);
+            } catch (e) {
+                console.warn('LB submit error:', e.message);
+            }
+        }
+
+        function showNameInput(mode, score) {
+            let html = `<div class="overlay-title">上榜啦！</div>`;
+            html += `<div class="overlay-text">输入昵称，登上全球排行榜</div>`;
+            html += `<div style="margin:16px 0;display:flex;gap:8px;align-items:center;justify-content:center">`;
+            html += `<input id="lbNameOverlay" maxlength="20" placeholder="你的昵称" style="background:rgba(255,215,0,0.1);border:1px solid rgba(255,215,0,0.3);border-radius:8px;padding:8px 14px;color:#ffd700;font-size:16px;width:160px;outline:none;text-align:center">`;
+            html += `</div>`;
+            html += `<button class="overlay-btn overlay-btn-primary" onclick="confirmNameAndSubmit('${mode}',${score})">确认提交</button>`;
+            html += `<button class="overlay-btn overlay-btn-secondary" onclick="hideOverlay()" style="margin-top:8px">跳过</button>`;
+            showOverlay(html);
+            setTimeout(() => { const inp = document.getElementById('lbNameOverlay'); if(inp) inp.focus(); }, 100);
+        }
+
+        async function confirmNameAndSubmit(mode, score) {
+            const inp = document.getElementById('lbNameOverlay');
+            lbName = (inp ? inp.value.trim() : '') || '匿名玩家';
+            lbName = lbName.slice(0, 20);
+            localStorage.setItem('game24_lb_name', lbName);
+            hideOverlay();
+            try {
+                const ctrl = new AbortController();
+                const timer = setTimeout(() => ctrl.abort(), 5000);
+                await fetch(`${LB_API}/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ game: 'game24', mode, name: lbName, score }),
+                    signal: ctrl.signal
+                });
+                clearTimeout(timer);
+            } catch (e) {
+                console.warn('LB submit error:', e.message);
+            }
+        }
+
+        // 首页排行榜预览
+        async function loadHomeRank() {
+            const listEl = document.getElementById('homeRankList');
+            if (!listEl) return;
+            try {
+                const ctrl = new AbortController();
+                const timer = setTimeout(() => ctrl.abort(), 5000);
+                const resp = await fetch(`${LB_API}/rank?game=game24&mode=extreme&limit=5`, { signal: ctrl.signal });
+                clearTimeout(timer);
+                const data = await resp.json();
+                if (!data.length) {
+                    listEl.innerHTML = `<div style="color:rgba(255,215,0,0.3);text-align:center;font-size:12px;padding:16px 0">暂无记录，快来第一个上榜！</div>`;
+                    return;
+                }
+                let html = '';
+                data.forEach((entry, i) => {
+                    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `<span style="color:rgba(255,215,0,0.3)">${i+1}</span>`;
+                    html += `<div style="display:flex;align-items:center;padding:5px 0;${i>0?'border-top:1px solid rgba(255,215,0,0.06)':''}">`;
+                    html += `<span style="width:24px;text-align:center;font-size:14px">${medal}</span>`;
+                    html += `<span style="flex:1;color:#e0e0e0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:6px">${entry.name}</span>`;
+                    html += `<span style="color:#ffd700;font-weight:700;font-size:13px;margin-left:8px">${entry.score}题</span>`;
+                    html += `</div>`;
+                });
+                listEl.innerHTML = html;
+            } catch (e) {
+                listEl.innerHTML = `<div style="color:rgba(255,215,0,0.3);text-align:center;font-size:12px;padding:16px 0">排行榜暂不可用 <span style="color:rgba(255,215,0,0.5);cursor:pointer;text-decoration:underline" onclick="loadHomeRank()">重试</span></div>`;
+            }
+        }
+
+        // ========== 背景粒子 ==========
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for (let i = 0; i < 30; i++) {
+                const p = document.createElement('div');
+                p.className = 'particle';
+                p.style.left = Math.random() * 100 + '%';
+                p.style.animationDuration = (8 + Math.random() * 12) + 's';
+                p.style.animationDelay = Math.random() * 10 + 's';
+                p.style.width = (1 + Math.random() * 2) + 'px';
+                p.style.height = p.style.width;
+                container.appendChild(p);
+            }
+        }
+
+        // ========== 初始化 ==========
+        createParticles();
+        updateStats();
+        updateDailyStatus();
+        loadHomeRank();
+        // 注册Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js').catch(() => {});
+        }
+    </script>
+</body>
+</html>

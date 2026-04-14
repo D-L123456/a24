@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>扫雷 - Minesweeper</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#e0e5ec">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" "default">
+<meta name="apple-mobile-web-app-title" content="扫雷游戏">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root {
+    --bg: #e0e5ec;
+    --fg: #f0f2f5;
+    --muted: #d1d9e6;
+    --text: #2d3436;
+    --text-muted: #4a5568;
+    --accent: #ff4757;
+    --accent-fg: #ffffff;
+    --border-shadow: #babecc;
+    --border-light: #ffffff;
+    --border-dark: #a3b1c6;
+    --shadow-card: 6px 6px 12px #babecc, -6px -6px 12px #ffffff;
+    --shadow-floating: 10px 10px 20px #babecc, -10px -10px 20px #ffffff, inset 1px 1px 0 rgba(255,255,255,0.5);
+    --shadow-pressed: inset 4px 4px 8px #babecc, inset -4px -4px 8px #ffffff;
+    --shadow-recessed: inset 3px 3px 6px #babecc, inset -3px -3px 6px #ffffff;
+    --glow: 0 0 10px 2px rgba(255, 71, 87, 0.6);
+    --ease: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    --cell-size: 36px;
+    --cell-gap: 3px;
+    --cell-radius: 6px;
+    --cell-font: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    overflow: hidden;
+  }
+
+  .game-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 20px;
+    background: var(--bg);
+    border-radius: 24px;
+    box-shadow: var(--shadow-card);
+    max-width: 98vw;
+  }
+
+  .game-title {
+    font-family: 'Courier New', monospace;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--text);
+    text-shadow: 2px 2px 0 var(--border-light), -1px -1px 0 var(--border-shadow);
+  }
+
+  /* Difficulty selector */
+  .difficulty-bar {
+    display: flex;
+    gap: 8px;
+    padding: 5px;
+    border-radius: 12px;
+    box-shadow: var(--shadow-recessed);
+    background: var(--bg);
+  }
+
+  .diff-btn {
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 7px 16px;
+    border: none;
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 200ms var(--ease);
+    box-shadow: var(--shadow-card);
+  }
+
+  .diff-btn:hover { color: var(--text); }
+
+  .diff-btn.active {
+    background: var(--accent);
+    color: var(--accent-fg);
+    box-shadow: var(--glow), 4px 4px 8px #babecc, -4px -4px 8px #ffffff;
+  }
+
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    gap: 12px;
+    padding: 10px 16px;
+    border-radius: 14px;
+    box-shadow: var(--shadow-recessed);
+    background: var(--bg);
+  }
+
+  .counter {
+    font-family: 'Courier New', monospace;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 50px;
+    text-align: center;
+    text-shadow: 0 0 8px rgba(255, 71, 87, 0.3);
+  }
+
+  .counter-label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 1px;
+  }
+
+  .counter-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .reset-btn {
+    width: 44px;
+    height: 44px;
+    border: none;
+    border-radius: 50%;
+    background: var(--bg);
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    font-size: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 150ms var(--ease);
+  }
+
+  .reset-btn:active {
+    box-shadow: var(--shadow-pressed);
+    transform: translateY(2px);
+  }
+
+  .reset-btn:hover { box-shadow: var(--shadow-floating); }
+
+  /* Mode toggle for mobile (dig/flag) */
+  .mode-bar {
+    display: flex;
+    gap: 8px;
+    padding: 4px;
+    border-radius: 10px;
+    box-shadow: var(--shadow-recessed);
+    background: var(--bg);
+  }
+
+  .mode-btn {
+    font-size: 20px;
+    width: 44px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: var(--bg);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 150ms var(--ease);
+    box-shadow: var(--shadow-card);
+  }
+
+  .mode-btn.active {
+    box-shadow: var(--shadow-pressed);
+    background: var(--muted);
+  }
+
+  .mode-btn.active.flag-mode {
+    box-shadow: var(--shadow-pressed), 0 0 8px rgba(255, 71, 87, 0.3);
+  }
+
+  /* Game board */
+  .board-wrapper {
+    padding: 10px;
+    border-radius: 14px;
+    box-shadow: var(--shadow-recessed);
+    background: var(--bg);
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 95vw;
+    max-height: 70vh;
+    max-height: 70dvh;
+  }
+
+  .board {
+    display: grid;
+    gap: var(--cell-gap);
+  }
+
+  .cell {
+    width: var(--cell-size);
+    height: var(--cell-size);
+    border: none;
+    border-radius: var(--cell-radius);
+    background: var(--bg);
+    box-shadow: var(--shadow-card);
+    cursor: pointer;
+    font-family: 'Courier New', monospace;
+    font-size: var(--cell-font);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 80ms ease;
+    color: var(--text);
+    position: relative;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .cell:hover:not(.revealed):not(.game-over) {
+    box-shadow: var(--shadow-floating);
+    transform: translateY(-1px);
+  }
+
+  .cell:active:not(.revealed):not(.game-over) {
+    box-shadow: var(--shadow-pressed);
+    transform: translateY(1px);
+  }
+
+  .cell.revealed {
+    box-shadow: var(--shadow-recessed);
+    background: var(--muted);
+    cursor: default;
+  }
+
+  .cell.flagged { box-shadow: var(--shadow-pressed); }
+
+  .cell.mine-exploded {
+    background: var(--accent);
+    box-shadow: var(--glow);
+    color: var(--accent-fg);
+    animation: explode 0.3s var(--ease);
+  }
+
+  .cell.mine-revealed {
+    box-shadow: var(--shadow-recessed);
+    background: #ffcccc;
+  }
+
+  .cell.wrong-flag {
+    box-shadow: var(--shadow-recessed);
+    background: #ffdddd;
+  }
+
+  @keyframes explode {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.3); }
+    100% { transform: scale(1); }
+  }
+
+  /* Number colors */
+  .cell.n1 { color: #2563eb; }
+  .cell.n2 { color: #16a34a; }
+  .cell.n3 { color: #dc2626; }
+  .cell.n4 { color: #7c3aed; }
+  .cell.n5 { color: #b91c1c; }
+  .cell.n6 { color: #0d9488; }
+  .cell.n7 { color: #1e293b; }
+  .cell.n8 { color: #6b7280; }
+
+  /* Game over overlay */
+  .overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(45, 52, 54, 0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 300ms ease;
+  }
+
+  .overlay.show {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  .overlay-card {
+    background: var(--bg);
+    border-radius: 24px;
+    box-shadow: var(--shadow-floating);
+    padding: 36px 44px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    transform: scale(0.9);
+    transition: transform 300ms var(--ease);
+  }
+
+  .overlay.show .overlay-card { transform: scale(1); }
+
+  .overlay-icon { font-size: 52px; line-height: 1; }
+
+  .overlay-title {
+    font-family: 'Courier New', monospace;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .overlay-title.win { color: #16a34a; }
+  .overlay-title.lose { color: var(--accent); }
+
+  .overlay-stats {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .overlay-btn {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 10px 28px;
+    border: none;
+    border-radius: 12px;
+    background: var(--accent);
+    color: var(--accent-fg);
+    cursor: pointer;
+    box-shadow: 4px 4px 8px #babecc, -4px -4px 8px #ffffff, 0 0 10px 2px rgba(255, 71, 87, 0.3);
+    transition: all 150ms var(--ease);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .overlay-btn:active {
+    box-shadow: var(--shadow-pressed);
+    transform: translateY(2px);
+  }
+
+  .overlay-btn:hover {
+    box-shadow: 0 0 16px 4px rgba(255, 71, 87, 0.5), 6px 6px 12px #babecc, -6px -6px 12px #ffffff;
+  }
+
+  /* Timer animation */
+  @keyframes pulse-glow {
+    0%, 100% { text-shadow: 0 0 8px rgba(255, 71, 87, 0.3); }
+    50% { text-shadow: 0 0 16px rgba(255, 71, 87, 0.6); }
+  }
+
+  .counter.timer-active { animation: pulse-glow 2s ease-in-out infinite; }
+
+  /* Responsive - mobile first */
+  @media (max-width: 420px) {
+    :root {
+      --cell-size: 30px;
+      --cell-gap: 2px;
+      --cell-radius: 4px;
+      --cell-font: 14px;
+    }
+    .game-container { padding: 12px; gap: 10px; }
+    .game-title { font-size: 18px; letter-spacing: 2px; }
+    .counter { font-size: 18px; }
+    .diff-btn { font-size: 11px; padding: 6px 12px; }
+    .status-bar { padding: 8px 12px; }
+    .overlay-card { padding: 28px 32px; }
+  }
+
+  @media (max-width: 360px) {
+    :root {
+      --cell-size: 26px;
+      --cell-gap: 2px;
+      --cell-radius: 3px;
+      --cell-font: 12px;
+    }
+    .game-container { padding: 8px; gap: 8px; }
+    .game-title { font-size: 16px; }
+    .counter { font-size: 16px; }
+    .diff-btn { font-size: 10px; padding: 5px 10px; }
+  }
+
+  /* Landscape on mobile */
+  @media (max-height: 500px) {
+    .game-container { padding: 8px; gap: 6px; }
+    .game-title { font-size: 16px; }
+    .board-wrapper { max-height: 80vh; max-height: 80dvh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="game-container">
+  <div class="game-title">Minesweeper</div>
+
+  <div class="difficulty-bar">
+    <button class="diff-btn active" data-diff="easy">Easy</button>
+    <button class="diff-btn" data-diff="medium">Medium</button>
+    <button class="diff-btn" data-diff="hard">Hard</button>
+  </div>
+
+  <div class="status-bar">
+    <div class="counter-group">
+      <div class="counter" id="mine-count">10</div>
+      <div class="counter-label">Mines</div>
+    </div>
+    <button class="reset-btn" id="reset-btn" title="重新开始">😊</button>
+    <div class="counter-group">
+      <div class="counter" id="timer">000</div>
+      <div class="counter-label">Time</div>
+    </div>
+  </div>
+
+  <div class="mode-bar">
+    <button class="mode-btn active" id="mode-dig" title="挖掘模式">⛏️</button>
+    <button class="mode-btn" id="mode-flag" title="标记模式">🚩</button>
+  </div>
+
+  <div class="board-wrapper">
+    <div class="board" id="board"></div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="overlay-card">
+    <div class="overlay-icon" id="overlay-icon"></div>
+    <div class="overlay-title" id="overlay-title"></div>
+    <div class="overlay-stats" id="overlay-stats"></div>
+    <button class="overlay-btn" id="overlay-btn">Play Again</button>
+  </div>
+</div>
+
+<script>
+// Register Service Worker
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+const DIFFICULTIES = {
+  easy:   { rows: 9,  cols: 9,  mines: 10 },
+  medium: { rows: 16, cols: 16, mines: 40 },
+  hard:   { rows: 16, cols: 30, mines: 99 },
+};
+
+let difficulty = 'easy';
+let rows, cols, totalMines;
+let board = [];
+let cellEls = [];
+let gameStarted = false;
+let gameOver = false;
+let flagCount = 0;
+let revealedCount = 0;
+let timerInterval = null;
+let seconds = 0;
+let flagMode = false; // mobile: toggle between dig/flag
+
+const boardEl = document.getElementById('board');
+const mineCountEl = document.getElementById('mine-count');
+const timerEl = document.getElementById('timer');
+const resetBtn = document.getElementById('reset-btn');
+const overlay = document.getElementById('overlay');
+const overlayIcon = document.getElementById('overlay-icon');
+const overlayTitle = document.getElementById('overlay-title');
+const overlayStats = document.getElementById('overlay-stats');
+const overlayBtn = document.getElementById('overlay-btn');
+const modeDig = document.getElementById('mode-dig');
+const modeFlag = document.getElementById('mode-flag');
+
+// Mode toggle
+modeDig.addEventListener('click', () => {
+  flagMode = false;
+  modeDig.classList.add('active');
+  modeDig.classList.remove('flag-mode');
+  modeFlag.classList.remove('active');
+});
+
+modeFlag.addEventListener('click', () => {
+  flagMode = true;
+  modeFlag.classList.add('active', 'flag-mode');
+  modeDig.classList.remove('active');
+});
+
+// Difficulty buttons
+document.querySelectorAll('.diff-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.diff-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    difficulty = btn.dataset.diff;
+    initGame();
+  });
+});
+
+resetBtn.addEventListener('click', initGame);
+overlayBtn.addEventListener('click', () => {
+  overlay.classList.remove('show');
+  initGame();
+});
+
+function getCellSize() {
+  return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+}
+
+function initGame() {
+  const config = DIFFICULTIES[difficulty];
+  rows = config.rows;
+  cols = config.cols;
+  totalMines = config.mines;
+
+  gameStarted = false;
+  gameOver = false;
+  flagCount = 0;
+  revealedCount = 0;
+  seconds = 0;
+  clearInterval(timerInterval);
+  timerInterval = null;
+
+  updateMineCounter();
+  timerEl.textContent = '000';
+  timerEl.classList.remove('timer-active');
+  resetBtn.textContent = '😊';
+
+  // Reset to dig mode
+  flagMode = false;
+  modeDig.classList.add('active');
+  modeDig.classList.remove('flag-mode');
+  modeFlag.classList.remove('active');
+
+  // Build board data
+  board = [];
+  for (let r = 0; r < rows; r++) {
+    board[r] = [];
+    for (let c = 0; c < cols; c++) {
+      board[r][c] = { mine: false, revealed: false, flagged: false, count: 0 };
+    }
+  }
+
+  // Build DOM
+  boardEl.innerHTML = '';
+  const cellSize = getCellSize();
+  boardEl.style.gridTemplateColumns = `repeat(${cols}, ${cellSize}px)`;
+  cellEls = [];
+
+  for (let r = 0; r < rows; r++) {
+    cellEls[r] = [];
+    for (let c = 0; c < cols; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      cell.addEventListener('click', onCellClick);
+      cell.addEventListener('contextmenu', onCellRightClick);
+
+      // Long press for mobile flagging (fallback when mode bar not used)
+      let longPressTimer;
+      cell.addEventListener('touchstart', (e) => {
+        longPressTimer = setTimeout(() => {
+          e.preventDefault();
+          onCellRightClick(e);
+        }, 500);
+      }, { passive: false });
+      cell.addEventListener('touchend', () => clearTimeout(longPressTimer));
+      cell.addEventListener('touchmove', () => clearTimeout(longPressTimer));
+
+      boardEl.appendChild(cell);
+      cellEls[r][c] = cell;
+    }
+  }
+}
+
+function placeMines(safeR, safeC) {
+  const safeCells = new Set();
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      const nr = safeR + dr, nc = safeC + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+        safeCells.add(nr * cols + nc);
+      }
+    }
+  }
+
+  let placed = 0;
+  while (placed < totalMines) {
+    const r = Math.floor(Math.random() * rows);
+    const c = Math.floor(Math.random() * cols);
+    if (!board[r][c].mine && !safeCells.has(r * cols + c)) {
+      board[r][c].mine = true;
+      placed++;
+    }
+  }
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (board[r][c].mine) continue;
+      let count = 0;
+      forEachNeighbor(r, c, (nr, nc) => {
+        if (board[nr][nc].mine) count++;
+      });
+      board[r][c].count = count;
+    }
+  }
+}
+
+function forEachNeighbor(r, c, fn) {
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
+        fn(nr, nc);
+      }
+    }
+  }
+}
+
+function onCellClick(e) {
+  if (gameOver) return;
+  const r = +e.currentTarget.dataset.r;
+  const c = +e.currentTarget.dataset.c;
+  const cell = board[r][c];
+
+  // In flag mode, left click = flag
+  if (flagMode) {
+    onCellRightClick(e);
+    return;
+  }
+
+  if (cell.flagged || cell.revealed) return;
+
+  if (!gameStarted) {
+    gameStarted = true;
+    placeMines(r, c);
+    startTimer();
+  }
+
+  if (cell.mine) {
+    cell.revealed = true;
+    gameOver = true;
+    revealAllMines(r, c);
+    stopTimer();
+    resetBtn.textContent = '😵';
+    setTimeout(() => showOverlay(false), 500);
+    return;
+  }
+
+  reveal(r, c);
+  checkWin();
+}
+
+function onCellRightClick(e) {
+  e.preventDefault();
+  if (gameOver) return;
+  const r = +e.currentTarget.dataset.r;
+  const c = +e.currentTarget.dataset.c;
+  const cell = board[r][c];
+
+  if (cell.revealed) return;
+
+  cell.flagged = !cell.flagged;
+  flagCount += cell.flagged ? 1 : -1;
+  updateCellDOM(r, c);
+  updateMineCounter();
+}
+
+function reveal(r, c) {
+  const cell = board[r][c];
+  if (cell.revealed || cell.flagged || cell.mine) return;
+
+  cell.revealed = true;
+  revealedCount++;
+  updateCellDOM(r, c);
+
+  if (cell.count === 0) {
+    forEachNeighbor(r, c, (nr, nc) => {
+      reveal(nr, nc);
+    });
+  }
+}
+
+function updateCellDOM(r, c) {
+  const cell = board[r][c];
+  const el = cellEls[r][c];
+
+  el.className = 'cell';
+  el.textContent = '';
+
+  if (cell.revealed) {
+    el.classList.add('revealed');
+    if (cell.mine) {
+      el.classList.add('mine-exploded');
+      el.textContent = '💣';
+    } else if (cell.count > 0) {
+      el.textContent = cell.count;
+      el.classList.add('n' + cell.count);
+    }
+  } else if (cell.flagged) {
+    el.classList.add('flagged');
+    el.textContent = '🚩';
+  }
+}
+
+function revealAllMines(explodedR, explodedC) {
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const cell = board[r][c];
+      const el = cellEls[r][c];
+      el.classList.add('game-over');
+
+      if (r === explodedR && c === explodedC) {
+        cell.revealed = true;
+        el.className = 'cell revealed mine-exploded';
+        el.textContent = '💣';
+        continue;
+      }
+
+      if (cell.mine && !cell.flagged) {
+        el.className = 'cell revealed mine-revealed';
+        el.textContent = '💣';
+      } else if (!cell.mine && cell.flagged) {
+        el.className = 'cell revealed wrong-flag';
+        el.textContent = '❌';
+      }
+    }
+  }
+}
+
+function checkWin() {
+  const totalSafe = rows * cols - totalMines;
+  if (revealedCount === totalSafe) {
+    gameOver = true;
+    stopTimer();
+    resetBtn.textContent = '😎';
+
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (board[r][c].mine && !board[r][c].flagged) {
+          board[r][c].flagged = true;
+          cellEls[r][c].textContent = '🚩';
+          cellEls[r][c].className = 'cell flagged';
+        }
+      }
+    }
+    flagCount = totalMines;
+    updateMineCounter();
+    setTimeout(() => showOverlay(true), 500);
+  }
+}
+
+function updateMineCounter() {
+  const remaining = totalMines - flagCount;
+  mineCountEl.textContent = String(Math.max(0, remaining)).padStart(2, '0');
+}
+
+function startTimer() {
+  timerEl.classList.add('timer-active');
+  timerInterval = setInterval(() => {
+    seconds++;
+    if (seconds > 999) seconds = 999;
+    timerEl.textContent = String(seconds).padStart(3, '0');
+  }, 1000);
+}
+
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerEl.classList.remove('timer-active');
+}
+
+function showOverlay(isWin) {
+  overlayIcon.textContent = isWin ? '🏆' : '💥';
+  overlayTitle.textContent = isWin ? 'You Win' : 'Game Over';
+  overlayTitle.className = 'overlay-title ' + (isWin ? 'win' : 'lose');
+  overlayStats.textContent = `Time: ${seconds}s  |  ${DIFFICULTIES[difficulty].rows}×${DIFFICULTIES[difficulty].cols}  |  ${totalMines} mines`;
+  overlay.classList.add('show');
+}
+
+// Prevent context menu on the whole board
+boardEl.addEventListener('contextmenu', e => e.preventDefault());
+
+// Initialize
+initGame();
+</script>
+</body>
+</html>
